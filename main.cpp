@@ -6,6 +6,16 @@ struct Matrix {
 	double **mat;
 };
 
+void printMatrix(Matrix matrix) {
+	for (int x = 0; x < matrix.rows; x++) {
+		for (int y = 0; y < matrix.cols; y++) {
+			printf("%4.1lf ", matrix.mat[x][y]);
+		}
+		printf("\n");
+	}
+	printf("\n");
+}
+
 void addRows(Matrix matrix, int srcRow, int dstRow) {
 	if (srcRow >= 0 && dstRow >= 0 && srcRow < matrix.rows && dstRow < matrix.rows)
 	{
@@ -100,14 +110,89 @@ void reducedEchelonForm(Matrix matrix) {
 	}
 }
 
-void printMatrix(Matrix matrix) {
-	for (int x = 0; x < matrix.rows; x++) {
-		for (int y = 0; y < matrix.cols; y++) {
-			printf("%4.1lf ", matrix.mat[x][y]);
-		}
-		printf("\n");
+Matrix reduceMatrix(Matrix matrix) {
+	Matrix ret;
+	ret.rows = matrix.rows;
+	ret.cols = matrix.cols;
+
+	double** mat = new double *[ret.rows];
+	//For each row, create an array of size cols * 2
+	for (int i = 0; i < ret.rows; i++) {
+		mat[i] = new double[ret.cols];
 	}
-	printf("\n");
+
+	for (int y = 0; y < matrix.rows; y++) {
+		for (int x = 0; x < matrix.cols; x++) {
+			mat[y][x] = matrix.mat[y][x];
+		}
+	}
+
+	ret.mat = mat;
+
+	echelonForm(ret);
+	reducedEchelonForm(ret);
+
+	return ret;
+}
+
+bool getInverse(Matrix matrix, Matrix* out) {
+	bool square = matrix.rows == matrix.cols, gotIdentityMatrix = true;
+	if(square) {
+		Matrix temp;
+		temp.rows = matrix.rows;
+		temp.cols = matrix.cols * 2;
+
+		double **mat = new double *[temp.rows];
+		//For each row, create an array of size cols * 2
+		for (int i = 0; i < temp.rows; i++) {
+			mat[i] = new double[temp.cols * 2];
+		}
+
+		for (int y = 0; y < matrix.rows; y++) {
+			for (int x = 0; x < matrix.cols; x++) {
+				mat[y][x] = matrix.mat[y][x];
+			}
+			for (int x = matrix.cols; x < temp.cols; x++) {
+				if (x - matrix.cols == y) {
+					mat[y][x] = 1;
+				} else {
+					mat[y][x] = 0;
+				}
+			}
+		}
+
+		temp.mat = mat;
+
+		echelonForm(temp);
+		reducedEchelonForm(temp);
+
+		//Check that the left side is the identity matrix
+		for (int y = 0; y < matrix.rows; y++) {
+			for (int x = 0; x < matrix.cols; x++) {
+				if ((x == y && temp.mat[y][x] != 1) || (x != y && temp.mat[y][x] != 0)) {
+					gotIdentityMatrix = false;
+				}
+			}
+		}
+
+		(*out).rows = matrix.rows;
+		(*out).cols = matrix.cols;
+
+		double **newMat = new double *[matrix.rows];
+		//For each row, create an array of size cols
+		for (int i = 0; i < matrix.rows; i++) {
+			newMat[i] = new double[matrix.cols];
+		}
+
+		for (int y = 0; y < matrix.rows; y++) {
+			for (int x = 0; x < matrix.cols; x++) {
+				newMat[y][x] = temp.mat[y][x + matrix.cols];
+			}
+		}
+
+		(*out).mat = newMat;
+	}
+	return square && gotIdentityMatrix;
 }
 
 int main() {
@@ -115,47 +200,50 @@ int main() {
 	printf("Generate random matrix? (y/n): ");
 	scanf("%c", &generate);
 
-	int rows, cols;
+	Matrix matrix;
 	printf("Enter # rows: ");
-	scanf("%d", &rows);
+	scanf("%d", &(matrix.rows));
 	printf("Enter # columns: ");
-	scanf("%d", &cols);
+	scanf("%d", &(matrix.cols));
 
-	double *mat[rows];
+	matrix.mat = new double *[matrix.rows];
 	//For each row, create an array of size cols
-	for (int i = 0; i < rows; i++) {
-		mat[i] = new double[cols];
+	for (int i = 0; i < matrix.rows; i++) {
+		matrix.mat[i] = new double[matrix.cols];
 	}
 
 	if (generate == 'y') {
-		for (int x = 0; x < rows; x++) {
-			for (int y = 0; y < cols; y++) {
-				mat[x][y] = rand() % 10;
+		for (int x = 0; x < matrix.rows; x++) {
+			for (int y = 0; y < matrix.cols; y++) {
+				matrix.mat[x][y] = rand() % 50;
 			}
 		}
 	} else {
 		printf("Enter your matrix: \n");
-		for (int x = 0; x < rows; x++) {
-			for (int y = 0; y < cols; y++) {
+		for (int x = 0; x < matrix.rows; x++) {
+			for (int y = 0; y < matrix.cols; y++) {
 				printf("Enter (row, column) (%d, %d): ", x, y);
-				scanf("%lf", &mat[x][y]);
+				scanf("%lf", &(matrix.mat[x][y]));
 			}
 		}
 	}
-
-	Matrix matrix;
-	matrix.rows = rows;
-	matrix.cols = cols;
-	matrix.mat = mat;
 	
 	printf("Matrix:\n");
 	printMatrix(matrix);
 
-	echelonForm(matrix);
-	reducedEchelonForm(matrix);
+	Matrix reduced = reduceMatrix(matrix);
 
 	printf("Reduced Row Echelon Form:\n");
-	printMatrix(matrix);
+	printMatrix(reduced);
+
+	Matrix inv;
+
+	if (getInverse(matrix, &inv)) {
+		printf("Inverse:\n");
+		printMatrix(inv);
+	} else {
+		printf("Not invertible.\n");
+	}
 
 	return 0;
 }
