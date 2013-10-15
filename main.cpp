@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-struct Matrix {
+typedef struct {
 	int rows, cols;
 	double **mat;
-};
+} Matrix;
 
 void printMatrix(Matrix matrix) {
 	for (int x = 0; x < matrix.rows; x++) {
