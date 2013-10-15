@@ -9,7 +9,7 @@ struct Matrix {
 void printMatrix(Matrix matrix) {
 	for (int x = 0; x < matrix.rows; x++) {
 		for (int y = 0; y < matrix.cols; y++) {
-			printf("%4.1lf ", matrix.mat[x][y]);
+			printf("%5.1lf ", matrix.mat[x][y]);
 		}
 		printf("\n");
 	}
@@ -50,6 +50,15 @@ void divideRow(Matrix matrix, int dstRow, double factor) {
 			matrix.mat[dstRow][i] /= factor;
 		}
 	}
+}
+
+double **newMat(int rows, int cols) {
+	double** mat = new double *[rows];
+	//For each row, create an array of size cols
+	for (int i = 0; i < rows; i++) {
+		mat[i] = new double[cols];
+	}
+	return mat;
 }
 
 int indexOfLeadingNonZero(int row, Matrix matrix) {
@@ -115,19 +124,13 @@ Matrix reduceMatrix(Matrix matrix) {
 	ret.rows = matrix.rows;
 	ret.cols = matrix.cols;
 
-	double** mat = new double *[ret.rows];
-	//For each row, create an array of size cols * 2
-	for (int i = 0; i < ret.rows; i++) {
-		mat[i] = new double[ret.cols];
-	}
+	ret.mat = newMat(ret.rows, ret.cols);
 
 	for (int y = 0; y < matrix.rows; y++) {
 		for (int x = 0; x < matrix.cols; x++) {
-			mat[y][x] = matrix.mat[y][x];
+			ret.mat[y][x] = matrix.mat[y][x];
 		}
 	}
-
-	ret.mat = mat;
 
 	echelonForm(ret);
 	reducedEchelonForm(ret);
@@ -142,26 +145,20 @@ bool getInverse(Matrix matrix, Matrix* out) {
 		temp.rows = matrix.rows;
 		temp.cols = matrix.cols * 2;
 
-		double **mat = new double *[temp.rows];
-		//For each row, create an array of size cols * 2
-		for (int i = 0; i < temp.rows; i++) {
-			mat[i] = new double[temp.cols * 2];
-		}
+		temp.mat = newMat(temp.rows, temp.cols);
 
 		for (int y = 0; y < matrix.rows; y++) {
 			for (int x = 0; x < matrix.cols; x++) {
-				mat[y][x] = matrix.mat[y][x];
+				temp.mat[y][x] = matrix.mat[y][x];
 			}
 			for (int x = matrix.cols; x < temp.cols; x++) {
 				if (x - matrix.cols == y) {
-					mat[y][x] = 1;
+					temp.mat[y][x] = 1;
 				} else {
-					mat[y][x] = 0;
+					temp.mat[y][x] = 0;
 				}
 			}
 		}
-
-		temp.mat = mat;
 
 		echelonForm(temp);
 		reducedEchelonForm(temp);
@@ -175,24 +172,53 @@ bool getInverse(Matrix matrix, Matrix* out) {
 			}
 		}
 
-		(*out).rows = matrix.rows;
-		(*out).cols = matrix.cols;
+		if (gotIdentityMatrix) {
+			(*out).rows = matrix.rows;
+			(*out).cols = matrix.cols;
 
-		double **newMat = new double *[matrix.rows];
-		//For each row, create an array of size cols
-		for (int i = 0; i < matrix.rows; i++) {
-			newMat[i] = new double[matrix.cols];
+			(*out).mat = newMat((*out).rows, (*out).cols);
+
+			for (int y = 0; y < matrix.rows; y++) {
+				for (int x = 0; x < matrix.cols; x++) {
+					(*out).mat[y][x] = temp.mat[y][x + matrix.cols];
+				}
+			}
 		}
+	}
+	return square && gotIdentityMatrix;
+}
 
-		for (int y = 0; y < matrix.rows; y++) {
-			for (int x = 0; x < matrix.cols; x++) {
-				newMat[y][x] = temp.mat[y][x + matrix.cols];
+bool mult(Matrix one, Matrix two, Matrix* out) {
+	//Condition required for multiplication
+	bool ret = one.cols == two.rows;
+	
+	if (ret) {
+		(*out).rows = one.rows;
+		(*out).cols = two.cols;
+
+		(*out).mat = newMat((*out).rows, (*out).cols);
+
+		//Fill with zeros
+		for (int y = 0; y < (*out).rows; y++) {
+			for(int x = 0; x < (*out).cols; x++) {
+				(*out).mat[y][x] = 0; 
 			}
 		}
 
-		(*out).mat = newMat;
+		//For each vector making up the second matrix
+		for (int z = 0; z < two.cols; z++) {
+			//For each element in each vector making up the second matrix
+			for (int y = 0; y < two.rows; y++) {
+				//Multiply the item by the elements in the corresponding row of the first matrix
+				//Place them in the new matrix with row=row for the first matrix, col=column of second matrix
+				for(int x = 0; x < one.rows; x++) {
+					(*out).mat[x][z] += two.mat[y][z] * one.mat[x][y];
+				}
+			}
+		}
 	}
-	return square && gotIdentityMatrix;
+
+	return ret;
 }
 
 int main() {
@@ -206,16 +232,12 @@ int main() {
 	printf("Enter # columns: ");
 	scanf("%d", &(matrix.cols));
 
-	matrix.mat = new double *[matrix.rows];
-	//For each row, create an array of size cols
-	for (int i = 0; i < matrix.rows; i++) {
-		matrix.mat[i] = new double[matrix.cols];
-	}
+	matrix.mat = newMat(matrix.rows, matrix.cols);
 
 	if (generate == 'y') {
 		for (int x = 0; x < matrix.rows; x++) {
 			for (int y = 0; y < matrix.cols; y++) {
-				matrix.mat[x][y] = rand() % 50;
+				matrix.mat[x][y] = rand() % 10;
 			}
 		}
 	} else {
@@ -237,7 +259,6 @@ int main() {
 	printMatrix(reduced);
 
 	Matrix inv;
-
 	if (getInverse(matrix, &inv)) {
 		printf("Inverse:\n");
 		printMatrix(inv);
@@ -245,5 +266,12 @@ int main() {
 		printf("Not invertible.\n");
 	}
 
+	Matrix sqr;
+	if (mult(matrix, matrix, &sqr)) {
+		printf("Square of matrix:\n");
+		printMatrix(sqr);
+	} else {
+		printf("Could not square matrix because it is not square.\n");
+	}
 	return 0;
 }
